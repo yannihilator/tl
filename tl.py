@@ -33,7 +33,7 @@ def latest_record():
 
     # Gets the latest record.
     latest_time = df_entries['start'].max()
-    latest_record = df_entries.loc[df_etries['start'] == latest_time]
+    latest_record = df_entries.loc[df_entries['start'] == latest_time]
     if len(latest_record) == 1:
         start_time_record = latest_record.iloc[0]
         return start_time_record
@@ -45,7 +45,7 @@ def current_record():
     Gets the record based on if there is a start time. If there is no record with ONLY a start time, it returns null.
     '''
     latest = latest_record()
-    return latest if (pd.isnull(latest['stop']) and pd.isnull(latest['start']) == False) else pd.Series(dtype=object)
+    return latest if (not latest is None) and (pd.isnull(latest['stop']) and pd.isnull(latest['start']) == False) else pd.Series(dtype=object)
 
 def start():
     '''
@@ -93,7 +93,7 @@ def stop():
                     # Ask the user if this is the correct charge number.
                     charge_keyword = input(f'Found {row["charge_code"]}. Input new search, or press enter if correct: ')
                     if charge_keyword == '':
-                        charge_number = row
+                        charge_code = row
 
         # Add record and save data.
         df_entries.loc[df_entries.id == current.id, 'stop'] = stop_time
@@ -161,24 +161,20 @@ parser.add_argument('--entry', type=str, help='Entry argument')
 
 # Create the CSV datafiles if they do not exist.
 if not os.path.exists('entries.csv'):
+    file = open('entries.csv','a+')
+    file.write('id,start,stop,charge')
+    file.close()
 
 if not os.path.exists('charge_codes.csv'):
+    file = open('charge_codes.csv','a+')
+    file.write('id,charge_code')
+    file.close()
 
 # Get dataframes.
 df_entries = pd.read_csv('entries.csv')
 df_entries['start'] = pd.to_datetime(df_entries['start'])
 df_entries['stop'] = pd.to_datetime(df_entries['stop'])
-df_charge_code = pd.read_csv('charge_code.csv')
-# Add columns if empty.
-if df_entries.empty:
-    df_entries['id'] = ''
-    df_entries['start'] = ''
-    df_entries['stop'] = ''
-    df_entries['charge'] = ''
-
-if df_charge_code.empty:
-    df_charge_code['id'] = ''
-    df_charge_code['charge_code'] = ''
+df_charge_code = pd.read_csv('charge_codes.csv')
 
 # Main entrypoint.
 run()
