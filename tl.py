@@ -9,13 +9,21 @@ import pandas as pd
 import numpy as np
 from fuzzysearch import fuzzysearch
 
+def convert_timedelta(duration):
+    '''
+    Converts a given Timedelta object into readable string for easier display.
+    '''
+    days, seconds = duration.days, duration.seconds
+    hours = days * 24 + seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = (seconds % 60)
+    return '{:02d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
+
 def save_data():
     # Save entries df.
-    df_entries['id'] = df_entries.index + 1
     df_entries.to_csv('entries.csv', index=False)
 
     # Save charge codes df.
-    df_charge_code['id'] = df_charge_code.index + 1
     df_charge_code.to_csv('charge_codes.csv', index=False)
 
 def cls():
@@ -63,8 +71,9 @@ def start():
         start_time = datetime.now()
 
         # Add record and save to datafile.
+        id = df_entries['id'].max() + 1 if len(df_entries) > 0 else 1
         index = len(df_entries) if len(df_entries) > 0 else 0
-        df_entries.loc[index] = ['',start_time,'','']
+        df_entries.loc[index] = [id,start_time,'','']
         save_data()
 
         # Notify timer has started.
@@ -86,14 +95,21 @@ def stop():
         charge_code = None
 
         while charge_keyword != '':
+            # Boolean if it finds a match.
+            found = False
             # Search for the charge code based on the keyword.
             for index, row in df_charge_code.iterrows():
                 # Use fuzzysearch to match.
-                if fuzzysearch(charge_keyword, row['charge_code'].lower()):
+                if not found and fuzzysearch(charge_keyword, row['charge_code'].lower()):
                     # Ask the user if this is the correct charge number.
                     charge_keyword = input(f'Found {row["charge_code"]}. Input new search, or press enter if correct: ')
                     if charge_keyword == '':
+                        found = True
                         charge_code = row
+
+            # Prompt user if there was none found.
+            if not found:
+                charge_keyword = input('Could not find a charge code based on your search. Input new search, or press enter for none: ')
 
         # Add record and save data.
         df_entries.loc[df_entries.id == current.id, 'stop'] = stop_time
@@ -106,8 +122,9 @@ def add(charge_code, entry):
     Method that adds a charge code or entry to their respective datafile.
     '''
     if charge_code:
+        id = df_charge_code['id'].max() + 1
         index = len(df_charge_code) if len(df_charge_code) > 0 else 0
-        df_charge_code.loc[index] = ['',charge_code]
+        df_charge_code.loc[index] = [id,charge_code]
 
     save_data()
     print(f'Added {charge_code}')
@@ -123,15 +140,29 @@ def status():
     # Add status on current entry, if timer is running.
     current = current_record()
     if not current.empty:
-        duration = datetime.now() - current['start']
-        print(f'Current Entry: {duration}')
-        print(f'Today\'s Total: ')
+        # Get duration of running entry.
+        running_duration = datetime.now() - current['start']
+        running_duration_str = convert_timedelta(running_duration)
+        # Get duration of total for the day, including running entry.
+        duration = df_entries['stop'] - df_entries['start']
+        total_running_duration = duration.sum() + running_duration
+        total_running_duration_str = convert_timedelta(total_running_duration)
+        print(f'Running Entry: {running_duration_str}')
+        print(f'Today\'s Running Total: {total_running_duration_str}')
 
     # Add status on record for today.
-    print('')
-    print('-------------------------------------------------------')
-    print('ID  |  Duration  |  Start  |  Stop  |  Charge Code')
-    print('')
+    print('____________________________________________________________________')
+    print('  ID   |    Duration    |    Start    |    Stop    |    Charge Code')
+    print('____________________________________________________________________')
+    # Get the entries for today.
+    df_today = df_entries
+    df_today = pd.merge(df_today, df_charge_code, left_on='charge', right_on='id', how='left')
+    for index,row in df_today.iterrows():
+        start = row['start'].strftime('%H:%M:%S') if not pd.isnull(row['start']) else '   --   '
+        stop = row['stop'].strftime('%H:%M:%S') if not pd.isnull(row['stop']) else '   --   '
+        duration = convert_timedelta(row['stop'] - row['start']) if (not pd.isnull(row['start']) and not pd.isnull(row['stop'])) else '   --   '
+        charge = row['charge_code'] if not pd.isnull(row['charge_code']) else '   --   '
+        print(f'  {row["id_x"]}         {duration}        {start}     {stop}       {charge}')
 
 def run():
     # Get arguments.
@@ -174,6 +205,7 @@ if not os.path.exists('charge_codes.csv'):
 df_entries = pd.read_csv('entries.csv')
 df_entries['start'] = pd.to_datetime(df_entries['start'])
 df_entries['stop'] = pd.to_datetime(df_entries['stop'])
+#df_entries['duration'] = df_entries['stop'] - df_entries['start']
 df_charge_code = pd.read_csv('charge_codes.csv')
 
 # Main entrypoint.
