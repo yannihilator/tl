@@ -113,9 +113,13 @@ def stop():
 
         # Add record and save data.
         df_entries.loc[df_entries.id == current.id, 'stop'] = stop_time
-        df_entries.loc[df_entries.id == current.id, 'charge'] = charge_code['id']
+        df_entries.loc[df_entries.id == current.id, 'charge'] = charge_code['id'] if charge_code is not None else None
         save_data()
-        print(f'Record added for {charge_code["charge_code"]}')
+
+        # Construct and show message that it was added.
+        duration = convert_timedelta(stop_time - current['start'])
+        charge = charge_code['charge_code'] if charge_code is not None else '--'
+        print(f'Added {duration} for {charge}')
 
 def add(charge_code, entry):
     '''
@@ -131,32 +135,37 @@ def add(charge_code, entry):
 
 
 def status():
-    cls()
+    # Get the entries for today and sum their duration.
+    df_today = df_entries.sort_values('start',ascending=False)
+    df_today = pd.merge(df_today, df_charge_code, left_on='charge', right_on='id', how='left')
+    today_duration = (df_today['stop'] - df_today['start']).sum()
     # Create the CLI Status UI.
+    cls()
     today = date.today().strftime('%m/%d/%Y')
-    print(f'Timelog for {today}')
-    print('======================')
+    print(f'                         Timelog for {today}')
+    print('====================================================================')
 
-    # Add status on current entry, if timer is running.
+    # Add status on running entry, if timer is running.
     current = current_record()
     if not current.empty:
         # Get duration of running entry.
         running_duration = datetime.now() - current['start']
         running_duration_str = convert_timedelta(running_duration)
         # Get duration of total for the day, including running entry.
-        duration = df_entries['stop'] - df_entries['start']
-        total_running_duration = duration.sum() + running_duration
+        total_running_duration = today_duration + running_duration
         total_running_duration_str = convert_timedelta(total_running_duration)
-        print(f'Running Entry: {running_duration_str}')
-        print(f'Today\'s Running Total: {total_running_duration_str}')
+        print(f'Running: {running_duration_str}')
+        print(f'Today:   {total_running_duration_str}')
+    else:
+        # Show total duration for the today.
+        total_duration_str = convert_timedelta(today_duration)
+        print(f'Today:   {total_duration_str}')
+
 
     # Add status on record for today.
     print('____________________________________________________________________')
     print('  ID   |    Duration    |    Start    |    Stop    |    Charge Code')
     print('____________________________________________________________________')
-    # Get the entries for today.
-    df_today = df_entries
-    df_today = pd.merge(df_today, df_charge_code, left_on='charge', right_on='id', how='left')
     for index,row in df_today.iterrows():
         start = row['start'].strftime('%H:%M:%S') if not pd.isnull(row['start']) else '   --   '
         stop = row['stop'].strftime('%H:%M:%S') if not pd.isnull(row['stop']) else '   --   '
