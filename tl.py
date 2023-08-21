@@ -136,7 +136,8 @@ def add(charge_code, entry):
 
 def status():
     # Get the entries for today and sum their duration.
-    df_today = df_entries.sort_values('start',ascending=False)
+    df_today = df_entries[df_entries['start'].dt.date == date.today()]
+    df_today = df_today.sort_values('start',ascending=False)
     df_today = pd.merge(df_today, df_charge_code, left_on='charge', right_on='id', how='left')
     today_duration = (df_today['stop'] - df_today['start']).sum()
     # Create the CLI Status UI.
@@ -161,6 +162,13 @@ def status():
         total_duration_str = convert_timedelta(today_duration)
         print(f'Today:   {total_duration_str}')
 
+    # Sum up and display all of the totals by charge number.
+    charge_grouped = df_today.groupby('charge_code')
+    for group_name, group in charge_grouped:
+        duration = ' -- '
+        for index,row in group.iterrows():
+            duration = convert_timedelta(row['stop'] - row['start']) if (not pd.isnull(row['start']) and not pd.isnull(row['stop'])) else '   --   '
+        print(f'{group_name}:   {duration}')
 
     # Add status on record for today.
     print('____________________________________________________________________')
