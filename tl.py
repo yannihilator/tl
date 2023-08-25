@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import os
 import argparse
 
@@ -165,10 +165,12 @@ def status():
     # Sum up and display all of the totals by charge number.
     charge_grouped = df_today.groupby('charge_code')
     for group_name, group in charge_grouped:
-        duration = ' -- '
+        duration_charge_total = timedelta()
         for index,row in group.iterrows():
-            duration = convert_timedelta(row['stop'] - row['start']) if (not pd.isnull(row['start']) and not pd.isnull(row['stop'])) else '   --   '
-        print(f'{group_name}:   {duration}')
+            duration = (row['stop'] - row['start']) if (not pd.isnull(row['start']) and not pd.isnull(row['stop'])) else timedelta(days=0)
+            duration_charge_total = duration_charge_total + duration
+
+        print(f'{group_name}:   {convert_timedelta(duration_charge_total)}')
 
     # Add status on record for today.
     print('____________________________________________________________________')
